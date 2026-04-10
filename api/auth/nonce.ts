@@ -12,7 +12,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const { address } = req.body as { address?: string };
   if (!address) return res.status(400).json({ error: 'address is required' });
 
-  await connectDB();
+  try {
+    await connectDB();
+  } catch (err: unknown) {
+    return res.status(500).json({ error: 'DB connection failed', detail: (err as Error).message });
+  }
 
   const nonce = randomBytes(16).toString('hex');
   const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 min TTL
