@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { SiweMessage } from 'siwe';
+import { verifyMessage } from 'ethers';
 import { connectDB } from '../../lib/db';
 import { Nonce, User } from '../../lib/models';
 import { signToken } from '../../lib/jwt';
@@ -18,14 +18,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   await connectDB();
 
   try {
-    const siweMessage = new SiweMessage(message);
-    const { data: fields } = await siweMessage.verify({ signature });
+    // Recover address from signature
+    const recoveredAddress = verifyMessage(message, signature).toLowerCase();
 
-    const address = fields.address.toLowerCase();
+    // Parse nonce and address from the plain message
+    const nonceMatch = message.match(/Nonce: ([a-f0-9]+)/);
+    const addressMatch = message.split('\n')[1]?.trim();
+
+    if (!nonceMatch || !addressMatch) {
+      return res.status(400).json({ error: 'Invalid message format' });
+    }
+
+    const nonce = nonceMatch[1];
+    const address = addressMatch.toLowerCase();
+
+    // Verify recovered address matches claimed address
+    if (recoveredAddress !== address) {
+      return res.status(401).json({ error: 'Signature mismatch' });
+    }
 
     // Check nonce matches what we issued
     const stored = await Nonce.findOne({ address });
-    if (!stored || stored.nonce !== fields.nonce) {
+    if (!stored || stored.nonce !== nonce) {
       return res.status(401).json({ error: 'Invalid or expired nonce' });
     }
 
