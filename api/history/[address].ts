@@ -71,8 +71,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }),
   });
 
-  const json = await response.json() as { data?: unknown; errors?: unknown };
+  const json = await response.json().catch(() => ({})) as { data?: unknown; errors?: unknown };
   if (json.errors) return res.status(500).json({ error: json.errors });
+  if (!json.data) return res.status(200).json({ stakeCreateds: [], unstakeds: [] });
 
   return res.status(200).json(json.data);
 }
